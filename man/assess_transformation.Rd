@@ -29,6 +29,9 @@ centrally normal if the central 80\% of the data are approximately normally
 distributed. The null-hypothesis is that the transformed distribution is
 centrally normal.
 }
+\details{
+This function is a wrapper around \code{ecn.test}.
+}
 \examples{
 x <- exp(stats::rnorm(1000))
 transformer <- find_transformation_parameters(

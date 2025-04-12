@@ -243,8 +243,13 @@ power_transform <- function(
   .check_transformer(transformer)
 
   # Check that x is numeric.
-  if (!is.numeric(x) && !is(transformer, "transformationNone")) {
-    stop("x does not contain numeric values.")
+  if (!is(transformer, "transformationNone")) {
+    if (!is.numeric(x)) {
+      stop("x does not contain numeric values.")
+    }
+    if (!is.finite(get_lambda(transformer))) {
+      stop("Transformer was not fitted correctly.")
+    }
   }
 
   # Transform data using the transformer.

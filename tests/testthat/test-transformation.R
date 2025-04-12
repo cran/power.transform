@@ -773,7 +773,7 @@ for(ii in seq_along(parameter_list)){
         if(parameter_list[[ii]]$robust){
           if(parameter_list[[ii]]$invariant){
             # Very close to no transformation.
-            testthat::expect_true(abs(transformer@lambda + -1.0) < 0.2)
+            testthat::expect_true(abs(transformer@lambda + -0.3) < 0.2)
           } else {
             testthat::expect_true(abs(transformer@lambda + -0.6) < 0.2)
           }
