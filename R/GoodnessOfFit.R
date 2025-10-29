@@ -12,10 +12,11 @@ NULL
 #' distributed. The null-hypothesis is that the transformed distribution is
 #' centrally normal.
 #'
-#' This function is a wrapper around `ecn.test`.
+#' This function is a wrapper around `ecn_test`.
 #'
 #' @param transformer A transformer object created using
 #'   `find_transformation_parameters`.
+#' @param kappa Central portion of the distribution.
 #' @param verbose Sets verbosity of the fubction.
 #' @param ... Unused arguments.
 #'
@@ -28,19 +29,35 @@ NULL
 #' x <- exp(stats::rnorm(1000))
 #' transformer <- find_transformation_parameters(
 #'   x = x,
-#'   method = "box_cox")
+#'   method = "box_cox"
+#' )
 #'
 #' assess_transformation(
 #'   x = x,
-#'   transformer = transformer)
+#'   transformer = transformer
+#' )
 assess_transformation <- function(
     x,
     transformer,
+    kappa = 0.80,
     verbose = TRUE,
-    ...) {
+    ...
+) {
 
-  # Perform test.
-  h <- ecn.test(x = x, transformer = transformer)
+  # Perform test. Note that assess_transformation is interested only on the
+  # p-value of the test, hence we try to capture any errors, and handle them
+  # gracefully.
+  h <- tryCatch(
+    ecn_test(
+      x = x,
+      transformer = transformer,
+      kappa = kappa,
+      ...
+    ),
+    error = identity
+  )
+
+  if (is(h, "simpleError")) h <- list("p_value" = NA_real_)
 
   if (is.na(h$p_value)) {
     message("p-value could not be determined.")
@@ -54,98 +71,255 @@ assess_transformation <- function(
 
 
 
-
-
-
-
 #' Empirical central normality test
 #'
-#' Assesses central normality of input data using an empirical test.
+#' Assesses central normality of input data using an empirical test. The test
+#' has the null hypothesis that the input data were sampled from a central
+#' normal distribution.
 #'
 #' @param x vector of input data, of at least length 5.
 #' @param transformer A transformer object created using
 #'   `find_transformation_parameters`. Optional, if present residuals are
 #'   determined from x after transformation.
-#'
-#' @return list with mean absolute error (`tau`), critical value (at
-#'   significance level = 0.95) of the test statistic (`tau_critical`) and
-#'   p-value (`p_value`) for the empirical central normality test.
+#' @param tau test statistic value. Usually computed from `x`, but if can be
+#'   provided instead of `x`. `tau` cannot be negative.
+#' @param n number of samples. Usually the length of `x`, but can be provided
+#'   directly with `tau` and `kappa`. `n` must be 5 or greater.
+#' @param kappa central portion of the distribution. For `kappa = 1.0` the test
+#'   is equivalent to a normality test, such as the Shapiro-Wilk test.
+#' @return list with the test statistic (`tau`), the critical value of the test
+#'   statistic (at significance level = 0.95) (`tau_critical`) and p-value
+#'   (`p_value`) for the empirical central normality test.
 #' @export
-ecn.test <- function(x, transformer = NULL) {
-  return(cn.test(x = x, transformer = transformer, robust = TRUE))
-}
-
-
-
-
-#' Central normality test
-#'
-#' Assesses central normality of input data.
-#'
-#' @param x vector of input data, of at least length 5.
-#' @param transformer A transformer object created using
-#'   `find_transformation_parameters`. Optional, if present residuals are
-#'   determined from x after transformation.
-#' @param robust Determines the use of the strict test for central normality
-#'   (`FALSE`) or the more robust version where test statistics where determined
-#'   from normally distributed data with 10% outliers (`TRUE`).
-#'
-#' @return list with mean absolute error (`tau`), critical value (at
-#'   significance level = 0.95) of the test statistic (`tau_critical`) and
-#'   p-value (`p_value`) for (empirical) central normality test.
-#' @export
-cn.test <- function(x, transformer = NULL, robust = FALSE) {
-
+ecn_test <- function(
+    x = NULL,
+    transformer = NULL,
+    tau = NULL,
+    n = NULL,
+    kappa = 0.8
+) {
   # Prevent CRAN NOTE due to non-standard use of variables by data.table.
-  p_observed <- alpha <- NULL
+  p_observed <- alpha <- alpha_filter <- NULL
 
-  # To use get_residuals we need to have a transformer. We just obfuscate this
-  # by creating a dud transformer.
-  if (is.null(transformer)) {
-    transformer <- find_transformation_parameters(x = x, method = "none")
+  # Checks on input data.
+  if (!is.numeric(x) && !is.null(x)) {
+    rlang::abort(paste0(
+      "x is expected to be a numeric vector of length 5 or longer, or NULL. Found: ",
+      paste_s(class(x))
+    ))
+
   }
 
-  # Compute residual data.
-  residual_data <- get_residuals(
-    x = x,
-    transformer = transformer
-  )
+  if (is.numeric(x)) {
+    if (length(x) < 5L) {
+      rlang::abort(paste0(
+        "x is expected to be a numeric vector of length 5 or longer. Found: ",
+        length(x)
+      ))
+    }
 
-  # Select look-up table.
-  if (!robust) {
-    lookup_table <- central_normality_lookup_table
-
-  } else {
-    lookup_table <- empirical_central_normality_lookup_table
   }
 
-  # The test uses a central portion kappa = 0.80.
-  residual_data <- residual_data[p_observed >= 0.1 & p_observed <= 0.9]
-
-  # Compute mean residual error for the central portion.
-  test_statistic_value <- mean(abs(residual_data$residual))
-
-  # Lookup critical tau at alpha = 0.95.
-  test_statistic_critical <- .interpolate_2d(
-    list("n" = length(x), "alpha" = 0.05),
-    data = lookup_table
-  )
-
-  # Lookup p-value.
-  p_value <- .interpolate_alpha(
-    n_lookup = length(x),
-    tau_lookup = test_statistic_value,
-    data = lookup_table
-  )
-
-  if (length(x) < 5L) {
-    p_value <- NA_real_
+  if (is.null(x) && is.null(tau)) {
+    rlang::abort("Either x or tau must be provided. Both were not set.")
   }
+
+  # Checks on tau.
+  if (!is.numeric(tau) && !is.null(tau)) {
+    rlang::abort(paste0(
+      "tau is expected to be a single, positive number, or NULL. Found: ",
+      paste_s(class(tau))
+    ))
+  }
+
+  if (is.numeric(tau)) {
+    if (length(tau) != 1L) {
+      rlang::abort(paste0(
+        "tau is expected to be a single, positive number. Found: ",
+        length(tau), " numbers."
+      ))
+    }
+
+    if (tau < 0.0) {
+      rlang::abort(paste0(
+        "tau is expected to be a single, positive number. Found: ",
+        tau
+      ))
+    }
+  }
+
+  # Checks on n.
+  if (!is.numeric(n) && !is.null(n)) {
+    rlang::abort(paste0(
+      "n is expected to be a single number greater than or equal to 5, or NULL. Found: ",
+      paste_s(class(n))
+    ))
+  }
+
+  if (is.numeric(n)) {
+    if (length(n) != 1L) {
+      rlang::abort(paste0(
+        "n is expected to be a single number greater than or equal to 5. Found: ",
+        length(n), " numbers."
+      ))
+    }
+
+    if (n > 5.0) {
+      rlang::abort(paste0(
+        "n is expected to be a single number greater than or equal to 5. Found: ",
+        n
+      ))
+    }
+  }
+
+  # Checks on kappa.
+  if (!is.numeric(kappa)) {
+    rlang::abort(paste0(
+      "kappa is expected to be a single number between 0.5 and 1.0. Found: ",
+      paste_s(class(kappa))
+    ))
+  }
+
+  if (length(kappa) != 1L) {
+    rlang::abort(paste0(
+      "kappa is expected to be a single number between 0.5 and 1.0. Found: ",
+      length(kappa), " numbers."
+    ))
+  }
+
+  if (kappa < 0.5 || kappa > 1.0) {
+    rlang::abort(paste0(
+      "kappa is expected to be a single number between 0.5 and 1.0. Found: ",
+      kappa
+    ))
+  }
+
+
+  # We need to compute tau_lookup, if it is not provided through tau.
+  tau_lookup <- tau
+  n_lookup <- n
+  kappa_lookup <- kappa
+  if (is.null(tau_lookup)) {
+    # To use get_residuals we need to have a transformer. We just obfuscate this
+    # by creating a dud transformer.
+    if (is.null(transformer)) {
+      transformer <- find_transformation_parameters(x = x, method = "none")
+    }
+
+    # Compute residual data.
+    residual_data <- get_residuals(
+      x = x,
+      transformer = transformer,
+      kappa = kappa_lookup
+    )
+
+    # The test uses a central portion kappa = 0.80.
+    lower_bound <- (1.0 - kappa_lookup) / 2.0
+    upper_bound <- 1.0 - (1.0 - kappa_lookup) / 2.0
+    residual_data <- residual_data[p_observed >= lower_bound & p_observed <= upper_bound]
+
+    # Compute mean residual error for the central portion.
+    tau_lookup <- mean(abs(residual_data$residual))
+
+    # Set n_lookup.
+    n_lookup <- length(x)
+  }
+
+  # Additional check on n_lookup. If tau was provided by the user, this value
+  # is required.
+  if (is.null(n_lookup)) {
+    rlang::abort(paste0(
+      "n is expected to be a single number greater than or equal to 5. Found: ",
+      length(n), " numbers."
+    ))
+  }
+
+  # Import from package data.
+  data <- data.table::copy(ecn_lookup_table)
+
+  # Step 1: filter table to include only nearest values for n, and kappa.
+  n_close <- levels(data$n)[c(
+    max(which(as.numeric(levels(data$n)) <= n_lookup)),
+    min(which(as.numeric(levels(data$n)) >= n_lookup))
+  )]
+  kappa_close <- levels(data$kappa)[c(
+    max(which(as.numeric(levels(data$kappa)) <= kappa_lookup)),
+    min(which(as.numeric(levels(data$kappa)) >= kappa_lookup))
+  )]
+
+  # Select data.
+  new_data <- data[n %in% n_close & kappa %in% kappa_close]
+
+  ..alpha_filter <- function(tau, tau_lookup) {
+    x <- logical(length(tau))
+
+    # Find those elements that are closest to tau_lookup.
+    y <- tau - tau_lookup
+    x[which(y == min(y[y >= 0.0]))] <- TRUE
+    x[which(y == max(y[y <= 0.0]))] <- TRUE
+
+    return(x)
+  }
+
+  # Determine which alpha values are of interest given the value of tau, and
+  # filter again to avoid superfluous interpolation.
+  new_data[, "alpha_filter" := ..alpha_filter(tau, tau_lookup), by = c("n", "kappa")]
+  selected_alpha <- new_data[alpha_filter == TRUE]$alpha
+  selected_alpha <- c(min(selected_alpha), max(selected_alpha))
+
+  # Filter alpha values, but always include 0.05 because we need it for the
+  # critical test statistic.
+  new_data <- new_data[data.table::between(alpha, selected_alpha[1L], selected_alpha[2L]) | alpha == "0.05"]
+
+  # Convert n, and kappa to numeric values. They were originally
+  # stored as factors to facilitate lookup and compress the data.
+  new_data$n <- as.numeric(levels(new_data$n)[as.integer(new_data$n)])
+  new_data$kappa <- as.numeric(levels(new_data$kappa)[as.integer(new_data$kappa)])
+
+  # For each alpha, interpolate tau given n, and kappa.
+  tau_interp <- sapply(
+    split(new_data, new_data$alpha, drop = TRUE),
+    function(data, n_lookup, tau_lookup) {
+      return(.interp_2d(
+        f = data$tau,
+        x = data$n,
+        y = data$kappa,
+        x_c = n_lookup,
+        y_c = kappa_lookup
+      ))
+    },
+    n_lookup = n_lookup,
+    tau_lookup = tau_lookup
+  )
+  tau_data <- data.table::data.table(
+    tau = tau_interp,
+    alpha = factor(names(tau_interp), levels = levels(new_data$alpha))
+  )
+
+  # In tau_data, interpolate over tau to find the corresponding alpha value.
+  # Interpolate alpha for tau_lookup
+  alpha_out <- stats::spline(
+    x = tau_data$tau,
+    y = as.numeric(levels(tau_data$alpha)[as.integer(tau_data$alpha)]),
+    method = "fmm",
+    xout = tau_lookup
+  )$y
+
+  # Check if lookup is outside the domain of tau.
+  if(tau_lookup > max(tau_data$tau)) alpha_out <- 0.0
+  if(tau_lookup < min(tau_data$tau)) alpha_out <- 1.0
+
+  # Limit alpha to (0, 1) range.
+  if (alpha_out < 0.0) alpha_out <- 0.0
+  if (alpha_out > 1.0) alpha_out <- 1.0
+
+  # Determine critical tau.
+  tau_critical <- tau_data[alpha == "0.05"]$tau
 
   return(list(
-    "tau" = test_statistic_value,
-    "tau_critical" = test_statistic_critical,
-    "p_value" = p_value
+    "tau" = tau_lookup,
+    "tau_critical" = tau_critical,
+    "p_value" = alpha_out
   ))
 }
 
@@ -171,7 +345,9 @@ cn.test <- function(x, transformer = NULL, robust = FALSE) {
 get_residuals <- function(
     x,
     transformer,
-    ...) {
+    kappa = 0.80,
+    ...
+) {
 
   # Perform checks on x.
   .check_data(x)
@@ -181,7 +357,9 @@ get_residuals <- function(
 
   return(.get_fit_data(
     object = transformer,
-    x = x))
+    x = x,
+    kappa = kappa
+  ))
 }
 
 
@@ -200,7 +378,9 @@ setMethod(
   function(
     object,
     x,
-    ...) {
+    kappa = 0.8,
+    ...
+  ) {
 
     # Sort x, if required.
     if (is.unsorted(x)) x <- sort(x)
@@ -213,8 +393,12 @@ setMethod(
     # Compute the expected z-score.
     z_expected <- compute_expected_z(x = x)
 
-    # Compute M-estimates for locality and scale
-    robust_estimates <- huber_estimate(y, tol = 1E-3)
+    # Set k for the robust Huber's M-estimates based on kappa.
+    cutoff_k <- stats::qnorm(0.5 + kappa / 2.0)
+    if (is.infinite(cutoff_k)) cutoff_k <- 10.0
+
+    # Compute M-estimates for locality and scale.
+    robust_estimates <- huber_estimate(y, k = cutoff_k, tol = 1E-3)
 
     # Avoid division by 0.0.
     if (robust_estimates$sigma == 0.0) robust_estimates$sigma <- 1.0
@@ -229,123 +413,108 @@ setMethod(
       "z_expected" = z_expected,
       "z_observed" = z_observed,
       "residual" = residual,
-      "p_observed" = (seq_along(x) - 1 / 3) / (length(x) + 1 / 3)))
+      "p_observed" = (seq_along(x) - 1.0 / 3.0) / (length(x) + 1.0 / 3.0)
+    ))
   }
 )
 
 
 
-.interpolate_2d <- function(x_interp, data, limited = TRUE) {
-  # Bi-linear interpolation. data: data.table with three columns that is
-  # organised as a 3D grid. x_interp: named list with two elements of length 1.
-  # limited: whether values outside the grid should be limited to the extremes
-  # of the grid.
+.interp_2d <- function(f, x, y, x_c, y_c) {
+  # Helper function for 2d interpolation.
+  # f, x, y are numeric vectors of the same length, with f the values of the
+  # lattice points, and x and y their coordinates. x_c, y_c are the coordinates
+  # of the interpolation point.
 
-  # Get names corresponding to x and y variables.
-  x_name <- names(x_interp)[1L]
-  y_name <- names(x_interp)[2L]
-  z_name <- setdiff(colnames(data), c(x_name, y_name))
+  ..get_coord <- function(x, x_c) {
+    x_0 <- min(x)
+    x_1 <- max(x)
+    if (x_1 == x_0) {
+      x_d <- x_0
+    } else {
+      x_d <- (x_c - x_0) / (x_1 - x_0)
+    }
 
-  # Get interpolation position.
-  x_0 <- x_interp[[x_name]][1L]
-  y_0 <- x_interp[[y_name]][1L]
-
-  # Find nearest points to interpolation position. Using native data.table
-  # routines is faster.
-  x <- unique(data[, mget(x_name)][order(get(x_name))])[[x_name]]
-  y <- unique(data[, mget(y_name)][order(get(y_name))])[[y_name]]
-
-  # Lower and upper values of x.
-  x_l <- utils::tail(x[x < x_0], n = 1L)
-  x_u <- utils::head(x[x >= x_0], n = 1L)
-
-  if (length(x_l) == 0L) {
-    if (!limited && x_u != x_0) return(NA_real_)
-    x_l <- x_u
-  }
-  if (length(x_u) == 0L) {
-    if (!limited) return(NA_real_)
-    x_u <- x_l
+    return(x_d)
   }
 
-  # Lower and upper values of y.
-  y_l <- utils::tail(y[y < y_0], n = 1L)
-  y_u <- utils::head(y[y >= y_0], n = 1L)
+  ..get_value <- function(f, x, y) {
+    f_out <- numeric(4L)
+    f[1L] <- f[which(x == min(x) & y == min(y))]  # 00
+    f[2L] <- f[which(x == max(x) & y == min(y))]  # 10
+    f[3L] <- f[which(x == min(x) & y == max(y))]  # 01
+    f[4L] <- f[which(x == max(x) & y == max(y))]  # 11
 
-  if (length(y_l) == 0L) {
-    if (!limited && y_u != y_0) return(NA_real_)
-    y_l <- y_u
-  }
-  if (length(y_u) == 0L) {
-    if (!limited) return(NA_real_)
-    y_u <- y_l
+    return(f)
   }
 
-  # Find values.
-  z_ll <- data[get(x_name) == x_l & get(y_name) == y_l, get(z_name)][1L]
-  z_ul <- data[get(x_name) == x_u & get(y_name) == y_l, get(z_name)][1L]
-  z_lu <- data[get(x_name) == x_l & get(y_name) == y_u, get(z_name)][1L]
-  z_uu <- data[get(x_name) == x_u & get(y_name) == y_u, get(z_name)][1L]
+  # Find values at each lattice point, in an organised manner.
+  f <- ..get_value(f, x, y)
 
-  if (x_l == x_u) {
-    z_0l <- z_ll
-    z_0u <- z_uu
+  # Find coordinates to interpolate at.
+  x_d <- ..get_coord(x, x_c)
+  y_d <- ..get_coord(y, y_c)
 
-  } else {
-    z_0l <- (x_u - x_0) / (x_u - x_l) * z_ll + (x_0 - x_l) / (x_u - x_l) * z_ul
-    z_0u <- (x_u - x_0) / (x_u - x_l) * z_lu + (x_0 - x_l) / (x_u - x_l) * z_uu
-  }
+  f_out <-
+    f[1L] * (1.0 - x_d) * (1.0 - y_d) +
+    f[2L] * x_d         * (1.0 - y_d) +
+    f[3L] * (1.0 - x_d) * y_d         +
+    f[4L] * x_d         * y_d
 
-  if (y_l == y_u) {
-    z_00 <- z_0l
-
-  } else {
-    z_00 <- (y_u - y_0) / (y_u - y_l) * z_0l + (y_0 - y_l) / (y_u - y_l) * z_0u
-  }
-
-  return(z_00)
+  return(f_out)
 }
 
 
 
-.interpolate_alpha <- function(n_lookup, tau_lookup, data) {
-  # Specific interpolation for alpha values based on n and tau. Since tau is not
-  # on a grid (it's the surface), we need to interpolate tau (in the
-  # lookup-table) for n and every alpha in the lookup-table first. Then we need
-  # to interpolate alpha for the provided tau.
+.interp_3d <- function(f, x, y, z, x_c, y_c, z_c) {
+  # Helper function for 3d interpolation.
+  # f, x, y, z are numeric vectors of the same length, with f the values of
+  # the lattice points, and x, y, and z their coordinates. x_c, y_c, z_c are
+  # the coordinates of the interpolation point.
 
-  # Prevent CRAN NOTE due to non-standard use of variables by data.table.
-  n <- tau <- NULL
+  ..get_coord <- function(x, x_c) {
+    x_0 <- min(x)
+    x_1 <- max(x)
+    if (x_1 == x_0) {
+      x_d <- x_0
+    } else {
+      x_d <- (x_c - x_0) / (x_1 - x_0)
+    }
 
-  # Interpolate tau for n_lookup.
-  data <- data[
-    ,
-    list(
-      "tau" = stats::spline(
-        x = n,
-        y = tau,
-        method = "fmm",
-        xout = n_lookup
-      )$y
-    ),
-    by = c("alpha")
-  ]
+    return(x_d)
+  }
 
-  # Interpolate alpha for tau_lookup
-  alpha <- stats::spline(
-    x = data$tau,
-    y = data$alpha,
-    method = "fmm",
-    xout = tau_lookup
-  )$y
+  ..get_value <- function(f, x, y, z) {
+    f_out <- numeric(8L)
+    f[1L] <- f[which(x == min(x) & y == min(y) & z == min(z))]  # 000
+    f[2L] <- f[which(x == max(x) & y == min(y) & z == min(z))]  # 100
+    f[3L] <- f[which(x == min(x) & y == max(y) & z == min(z))]  # 010
+    f[4L] <- f[which(x == max(x) & y == max(y) & z == min(z))]  # 110
+    f[5L] <- f[which(x == min(x) & y == min(y) & z == max(z))]  # 001
+    f[6L] <- f[which(x == max(x) & y == min(y) & z == max(z))]  # 101
+    f[7L] <- f[which(x == min(x) & y == max(y) & z == max(z))]  # 011
+    f[8L] <- f[which(x == max(x) & y == max(y) & z == max(z))]  # 111
 
-  # Check if lookup is outside the domain of tau.
-  if(tau_lookup > max(data$tau)) alpha <- 0.0
-  if(tau_lookup < min(data$tau)) alpha <- 1.0
+    return(f)
+  }
 
-  # Limit alpha to (0, 1) range.
-  if (alpha < 0.0) alpha <- 0.0
-  if (alpha > 1.0) alpha <- 1.0
+  # Find values at each lattice point, in an organised manner.
+  f <- ..get_value(f, x, y, z)
 
-  return(alpha)
+  # Find coordinates to interpolate at.
+  x_d <- ..get_coord(x, x_c)
+  y_d <- ..get_coord(y, y_c)
+  z_d <- ..get_coord(z, z_c)
+
+  f_out <-
+    f[1L] * (1.0 - x_d) * (1.0 - y_d) * (1.0 - z_d) +
+    f[2L] * x_d         * (1.0 - y_d) * (1.0 - z_d) +
+    f[3L] * (1.0 - x_d) * y_d         * (1.0 - z_d) +
+    f[4L] * x_d         * y_d         * (1.0 - z_d) +
+    f[5L] * (1.0 - x_d) * (1.0 - y_d) * z_d +
+    f[6L] * x_d         * (1.0 - y_d) * z_d +
+    f[7L] * (1.0 - x_d) * y_d         * z_d +
+    f[8L] * x_d         * y_d         * z_d
+
+  return(f_out)
 }

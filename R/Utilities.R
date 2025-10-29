@@ -96,9 +96,14 @@ is_package_installed <- function(name) {
 
   if (length(name) == 0) return(TRUE)
 
-  installed_version <- tryCatch(
-    utils::packageVersion(name),
-    error = identity)
+  installed_version <- rlang::env_cache(
+    power_transform_global_env,
+    paste0(name, "_version"),
+    default = tryCatch(
+      utils::packageVersion(name),
+      error = identity
+    )
+  )
 
   return(!inherits(installed_version, "error"))
 }

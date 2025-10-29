@@ -4,7 +4,7 @@
 \alias{assess_transformation}
 \title{Assess normality of transformed data}
 \usage{
-assess_transformation(x, transformer, verbose = TRUE, ...)
+assess_transformation(x, transformer, kappa = 0.8, verbose = TRUE, ...)
 }
 \arguments{
 \item{x}{A vector with numeric values that should be transformed to
@@ -12,6 +12,8 @@ normality.}
 
 \item{transformer}{A transformer object created using
 \code{find_transformation_parameters}.}
+
+\item{kappa}{Central portion of the distribution.}
 
 \item{verbose}{Sets verbosity of the fubction.}
 
@@ -30,15 +32,17 @@ distributed. The null-hypothesis is that the transformed distribution is
 centrally normal.
 }
 \details{
-This function is a wrapper around \code{ecn.test}.
+This function is a wrapper around \code{ecn_test}.
 }
 \examples{
 x <- exp(stats::rnorm(1000))
 transformer <- find_transformation_parameters(
   x = x,
-  method = "box_cox")
+  method = "box_cox"
+)
 
 assess_transformation(
   x = x,
-  transformer = transformer)
+  transformer = transformer
+)
 }

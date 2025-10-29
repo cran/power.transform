@@ -4,7 +4,7 @@
 \alias{get_residuals}
 \title{Compute residuals of transformation to normality}
 \usage{
-get_residuals(x, transformer, ...)
+get_residuals(x, transformer, kappa = 0.8, ...)
 }
 \arguments{
 \item{x}{A vector with numeric values that should be transformed to
@@ -12,6 +12,8 @@ normality.}
 
 \item{transformer}{A transformer object created using
 \code{find_transformation_parameters}.}
+
+\item{kappa}{Central portion of the distribution.}
 
 \item{...}{Unused arguments.}
 }
