@@ -61,7 +61,7 @@ assess_transformation <- function(
 
   if (is.na(h$p_value)) {
     message("p-value could not be determined.")
-  } else if (h$p_value > 0.0001 && verbose) {
+  } else if (h$p_value < 0.0001 && verbose) {
     message("p-value is smaller than 0.0001")
   }
 
@@ -255,8 +255,8 @@ ecn_test <- function(
 
     # Find those elements that are closest to tau_lookup.
     y <- tau - tau_lookup
-    x[which(y == min(y[y >= 0.0]))] <- TRUE
-    x[which(y == max(y[y <= 0.0]))] <- TRUE
+    if (any(y >= 0.0)) x[which(y == min(y[y >= 0.0]))] <- TRUE
+    if (any(y <= 0.0)) x[which(y == max(y[y <= 0.0]))] <- TRUE
 
     return(x)
   }

@@ -1,6 +1,6 @@
 Package: power.transform
 Title: Location and Scale Invariant Power Transformations
-Version: 1.0.2
+Version: 1.0.3
 Authors@R: 
     c(
       person("Alex", "Zwanenburg",
@@ -40,11 +40,11 @@ Suggests: ggplot2 (>= 3.4.0), testthat (>= 3.0.0)
 Config/testthat/edition: 3
 Depends: R (>= 3.5)
 NeedsCompilation: no
-Packaged: 2025-10-29 12:36:05 UTC; alexz
+Packaged: 2026-01-15 13:46:17 UTC; alexz
 Author: Alex Zwanenburg [aut, cre] (ORCID:
     <https://orcid.org/0000-0002-0342-9545>),
   Steffen Löck [aut],
   German Cancer Research Center (DKFZ) [cph]
 Maintainer: Alex Zwanenburg <alexander.zwanenburg@nct-dresden.de>
 Repository: CRAN
-Date/Publication: 2025-10-29 13:00:02 UTC
+Date/Publication: 2026-01-15 17:40:11 UTC

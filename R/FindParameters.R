@@ -170,7 +170,25 @@ find_transformation_parameters <- function(
       transformer = object,
       verbose = FALSE)
 
-    if (gof_test_p < empirical_gof_normality_p_value) {
+    if (is.na(gof_test_p)) {
+      rlang::warn(
+        message = paste0(
+          "The p-value of the transformed data (", gof_test_p, ") could not be determined, likely due to an internal error. ",
+          "The transformation is rejected, and data are kept as is."
+        ),
+        class = "power_transform_no_transform"
+      )
+
+      object <- methods::new("transformationNone")
+
+      object <- .set_transformation_parameters(
+        object = object,
+        x = x,
+        lambda = lambda,
+        ...
+      )
+
+    } else if (gof_test_p < empirical_gof_normality_p_value) {
       rlang::warn(
         message = paste0(
           "The p-value of the transformed data (", gof_test_p, ") is below the required ",

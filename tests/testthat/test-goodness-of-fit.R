@@ -1,3 +1,23 @@
+# Assess whether test should be skipped due to external factors.
+x <- stats::rnorm(n = 100L)
+
+transformer <- power.transform::find_transformation_parameters(
+  x = x,
+  method = "yeo_johnson",
+  robust = FALSE,
+  invariant = FALSE,
+  estimation_method = "mle"
+)
+
+# Compute the p-value.
+p_value <- suppressMessages(power.transform::assess_transformation(
+  x = x,
+  transformer = transformer
+))
+
+testthat::skip_if(is.na(p_value))
+
+
 parameter_list <- list()
 ii <- 1
 for (method in c("box_cox", "yeo_johnson", "none")) {

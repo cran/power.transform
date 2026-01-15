@@ -1,3 +1,11 @@
+# Version 1.0.3
+
+## Changes
+
+- Fixed an error that occurred when assessing if a transformation should be
+  rejected, but the empirical central normality test p-value could not be 
+  computed.
+
 # Version 1.0.2
 
 ## Changes
