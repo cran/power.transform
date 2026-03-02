@@ -1,12 +1,12 @@
-36c9fc3c67720fa78941194d39036419 *DESCRIPTION
+fecb3a476480620e105f84b6e2e9c35b *DESCRIPTION
 9c4c86c89d45ab7a9e8e3763db188294 *NAMESPACE
-6ea4cc34a9279c10d8813cff724534c4 *NEWS.md
+d8be90f59f836cea36f4cd5a9b20c7a8 *NEWS.md
 cd0861315f8dea79641d763b31d4becf *R/AccessorsMutatorsLambda.R
 8c373d5ce5e940b46654bcd854b9a8a1 *R/AccessorsMutatorsScale.R
 ced2b9e40ddff7268dd667eb51e9942f *R/AccessorsMutatorsShift.R
 7645d2b261e17087d8dceb239510c3e2 *R/AccessorsTransformationMethod.R
 885e0dcb55c8a179f5c3a165aa2bf01e *R/Checks.R
-cf3f854c16fe2d9e3b7e19bae3b2b308 *R/FindParameters.R
+d5b41fd634ee4d7ad8b1975785b27601 *R/FindParameters.R
 c13cfcbfb353dec77b37b53e76299a6f *R/GoodnessOfFit.R
 c6c47c981fddfb4c62f56f1a2b4165c9 *R/ParameterEstimatorEDF.R
 a070826de64f5a674352f1d46acfb476 *R/ParameterEstimatorMLE.R
@@ -26,6 +26,7 @@ e1c56688de1e8aa259d50e5a72bc0a9d *R/TransformationObjects.R
 be05880c312153269f493c0c47a2fc0d *R/aaa.R
 3eecb10cf1f7ab59fd3b7861dcee789c *R/power.transform-package.R
 c7e6254d4daf624b096b29a7011c8671 *R/sysdata.rda
+d1e9b8b3bf947df394b24777eb5f6ba2 *inst/CITATION
 5110c9eb986f1673ba2b9ad83a988f76 *man/assess_transformation.Rd
 99b5a7a2b24157812ce1e05d831ffd52 *man/create_transformer_skeleton.Rd
 2798f77b64b58b4985d60d823964bdec *man/ecn_test.Rd
@@ -52,5 +53,5 @@ a55432107acf3e6ffbc533205d151efc *man/transformation_box_cox.Rd
 d1ca921c3bbd8518897caf66915709a3 *tests/testthat.R
 98cfd8a015250be6cecec593fc4e3505 *tests/testthat/test-accessors-mutators.R
 353a50082d20875f35877d6c0340aeec *tests/testthat/test-estimators.R
-15c7172c0a59d7afe712b4155630b112 *tests/testthat/test-goodness-of-fit.R
+b6f02dc213f2dad84b0314458ab0864b *tests/testthat/test-goodness-of-fit.R
 369d96e45b8105ad89d24cfeec2c73ee *tests/testthat/test-transformation.R

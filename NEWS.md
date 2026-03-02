@@ -1,3 +1,11 @@
+# Version 1.0.4
+
+## Changes
+
+- Updated citation, since the manuscript was published in *Machine Learning*: 
+  Zwanenburg, A. and Löck, S. (2026) *Location and scale-invariant power transformations for transforming data to normality*, 
+  Machine Learning, 115(3). Available at: https://doi.org/10.1007/s10994-026-06994-3.
+
 # Version 1.0.3
 
 ## Changes

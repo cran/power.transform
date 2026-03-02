@@ -1,0 +1,11 @@
+bibentry(
+  bibtype = "Article",
+  title = "Location and scale-invariant power transformations for transforming data to normality",
+  author = c(person("Alex", "Zwanenburg"),
+             person("Steffen", 'L{\\"o}ck')),
+  journal = "Machine Learning",
+  year = 2026,
+  volume = 115,
+  number = 3,
+  doi = "10.1007/s10994-026-06994-3"
+)
